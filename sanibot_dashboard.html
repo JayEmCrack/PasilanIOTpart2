@@ -1,0 +1,293 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SANI-BOT | Smart Sanitizer (Bluetooth)</title>
+<!-- SANI-BOT Bluetooth dashboard. Open in Chrome (Android / PC) or Bluefy (iPhone).
+     Must be opened from an https:// link (e.g. GitHub Pages / Netlify). Add ?demo to the link to try it without the ESP32. -->
+<style>
+:root{--bg1:#06131f;--bg2:#0b2235;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.1);
+--txt:#e8f6ff;--mut:#8fb3c9;--a:#2ef2c4;--b:#38bdf8;--warn:#ffb020;--bad:#ff4d6d}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--txt);min-height:100vh;
+ background:radial-gradient(900px 500px at 10% -10%,rgba(46,242,196,.18),transparent 60%),
+ radial-gradient(800px 500px at 110% 10%,rgba(56,189,248,.18),transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg2))}
+.wrap{max-width:1150px;margin:auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;
+ background:linear-gradient(135deg,var(--a),var(--b));box-shadow:0 8px 30px rgba(46,242,196,.35)}
+.brand h1{font-size:20px;letter-spacing:.5px}.brand p{font-size:12px;color:var(--mut)}
+.hdr{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;background:var(--card);
+ border:1px solid var(--line);font-size:13px;backdrop-filter:blur(10px)}
+.led{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 10px var(--bad)}
+.led.on{background:var(--a);box-shadow:0 0 10px var(--a)}
+.led.wait{background:var(--warn);box-shadow:0 0 10px var(--warn);animation:pulse 1s infinite}
+.bt{display:flex;align-items:center;gap:8px;border:0;cursor:pointer;font:inherit;font-weight:700;font-size:13px;
+ padding:9px 16px;border-radius:99px;color:#03202a;background:linear-gradient(135deg,var(--a),var(--b));box-shadow:0 6px 20px rgba(46,242,196,.3)}
+.bt.off{background:transparent;color:var(--txt);border:1px solid var(--line);box-shadow:none}
+.bt svg{width:16px;height:16px}
+.banner{display:none;margin-bottom:14px;padding:12px 16px;border-radius:14px;font-weight:600;
+ background:linear-gradient(90deg,rgba(255,77,109,.25),rgba(255,176,32,.2));border:1px solid rgba(255,77,109,.5)}
+.banner.show{display:block;animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.65}}
+.connect{display:none;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:14px;padding:20px;border-radius:20px;
+ background:linear-gradient(135deg,rgba(46,242,196,.14),rgba(56,189,248,.14));border:1px solid rgba(56,189,248,.45)}
+.connect.show{display:flex}
+.connect .bic{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:rgba(56,189,248,.2);flex:none}
+.connect .bic svg{width:30px;height:30px}
+.connect .tx{flex:1;min-width:200px}.connect b{font-size:17px}.connect p{font-size:13px;color:var(--mut);margin-top:4px}
+.connect .btn{width:auto;padding:14px 26px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+#main{transition:opacity .3s}#main.dim{opacity:.45}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;backdrop-filter:blur(14px);
+ box-shadow:0 10px 40px rgba(0,0,0,.25);min-width:0}
+.card h3{font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);margin-bottom:14px}
+.c4{grid-column:span 4}.c8{grid-column:span 8}.c6{grid-column:span 6}.c12{grid-column:span 12}.c3{grid-column:span 3}
+@media(max-width:900px){.c4,.c8,.c6{grid-column:span 12}.c3{grid-column:span 6}}
+.sensor{display:flex;flex-direction:column;align-items:center;gap:14px}
+.ring{position:relative;width:170px;height:170px;border-radius:50%;display:grid;place-items:center;
+ background:radial-gradient(circle,rgba(56,189,248,.18),rgba(56,189,248,.03) 70%);border:2px solid rgba(56,189,248,.4);transition:.3s}
+.ring svg{width:70px;height:70px;opacity:.9}
+.ring:before,.ring:after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid var(--a);opacity:0}
+.ring.hand{border-color:var(--a);box-shadow:0 0 50px rgba(46,242,196,.45)}
+.ring.hand:before,.ring.hand:after{animation:rip 1.4s infinite}.ring.hand:after{animation-delay:.7s}
+@keyframes rip{from{transform:scale(1);opacity:.8}to{transform:scale(1.5);opacity:0}}
+.ring.busy{border-color:var(--b);box-shadow:0 0 60px rgba(56,189,248,.6)}
+.ring.off{filter:grayscale(1);opacity:.5}
+.state{font-size:20px;font-weight:700;letter-spacing:1px}
+.sub{font-size:12px;color:var(--mut)}
+.bottleBox{display:flex;align-items:center;gap:18px}
+.bottle{width:110px;flex:none}
+.bottle .head{transition:transform .25s}.bottle.press .head{transform:translateY(7px)}
+.wave{animation:wv 2.4s linear infinite}@keyframes wv{to{transform:translateX(-60px)}}
+#liq{transition:transform .8s ease}
+.big{font-size:44px;font-weight:800;line-height:1;background:linear-gradient(90deg,var(--a),var(--b));
+ -webkit-background-clip:text;background-clip:text;color:transparent}
+.big.low{background:linear-gradient(90deg,var(--bad),var(--warn));-webkit-background-clip:text;background-clip:text}
+.stat .v{font-size:30px;font-weight:800}.stat .l{font-size:12px;color:var(--mut);margin-top:4px}
+.stat .ic{float:right;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(46,242,196,.12);color:var(--a)}
+.btn{border:0;cursor:pointer;font:inherit;font-weight:700;border-radius:14px;padding:14px 18px;color:#03202a;
+ background:linear-gradient(135deg,var(--a),var(--b));box-shadow:0 8px 24px rgba(46,242,196,.3);transition:.15s;width:100%}
+.btn:active{transform:scale(.97)}.btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);box-shadow:none}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid rgba(255,77,109,.5);box-shadow:none}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sw{position:relative;width:54px;height:30px;flex:none}.sw input{display:none}
+.sw span{position:absolute;inset:0;border-radius:99px;background:rgba(255,255,255,.15);transition:.2s;cursor:pointer}
+.sw span:before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s}
+.sw input:checked+span{background:linear-gradient(135deg,var(--a),var(--b))}.sw input:checked+span:before{transform:translateX(24px)}
+.bars{display:flex;align-items:flex-end;gap:4px;height:230px;padding-top:10px}
+@media(max-width:900px){.bars{height:150px}}
+.bar{flex:1;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,var(--b),rgba(56,189,248,.25));min-height:3px;position:relative;transition:height .5s}
+.bar.now{background:linear-gradient(180deg,var(--a),rgba(46,242,196,.3));box-shadow:0 0 16px rgba(46,242,196,.5)}
+.bar:hover:after{content:attr(data-t);position:absolute;bottom:100%;left:50%;transform:translate(-50%,-4px);font-size:11px;
+ background:#000c;padding:3px 6px;border-radius:6px;white-space:nowrap}
+.hrs{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:6px}
+.set label{display:flex;justify-content:space-between;font-size:13px;margin:12px 0 6px;color:var(--mut)}
+.set label b{color:var(--txt)}
+input[type=range]{width:100%;accent-color:#2ef2c4}
+input[type=number]{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--txt);font:inherit}
+.log{max-height:290px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.it{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-size:13px}
+.it .d{width:8px;height:8px;border-radius:50%;background:var(--a);flex:none}.it.w .d{background:var(--warn)}
+.it time{margin-left:auto;color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,120px);padding:12px 20px;border-radius:14px;font-weight:600;
+ background:linear-gradient(135deg,var(--a),var(--b));color:#03202a;box-shadow:0 10px 30px rgba(0,0,0,.4);transition:.35s;white-space:nowrap}
+.toast.show{transform:translate(-50%,0)}
+footer{text-align:center;color:var(--mut);font-size:12px;margin:18px 0 6px}
+</style></head><body><div class="wrap">
+<header>
+ <div class="brand"><div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="#03202a"><path d="M12 2s7 7.6 7 12.5A7 7 0 0 1 5 14.5C5 9.6 12 2 12 2z"/></svg></div>
+  <div><h1>SANI-BOT</h1><p>Smart Hand Sanitizer &middot; ESP32 &middot; Bluetooth</p></div></div>
+ <div class="hdr">
+  <div class="pill"><span id="led" class="led"></span><span id="link">Disconnected</span><span>&middot;</span><span id="clk">--:--</span></div>
+  <button id="btBtn" class="bt" onclick="btToggle()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg><span id="btTxt">Connect</span></button>
+ </div>
+</header>
+<div id="connBox" class="connect show">
+ <div class="bic"><svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg></div>
+ <div class="tx"><b>Connect to your SANI-BOT</b><p id="connMsg">Turn on Bluetooth, tap Connect, then choose <b>SANI-BOT</b> from the list.</p></div>
+ <button class="btn" onclick="connect()">Connect via Bluetooth</button>
+</div>
+<div id="banner" class="banner">&#9888; Sanitizer is running low &mdash; please refill the bottle.</div>
+<div id="main" class="grid dim">
+ <div class="card c4"><h3>Hand Sensor</h3><div class="sensor">
+  <div id="ring" class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#e8f6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/></svg></div>
+  <div id="state" class="state">---</div><div id="stsub" class="sub">Connect to see live status</div></div></div>
+ <div class="card c4"><h3>Bottle Level</h3><div class="bottleBox">
+  <svg id="bottle" class="bottle" viewBox="0 0 120 200"><defs><clipPath id="cp"><rect x="20" y="58" width="80" height="134" rx="20"/></clipPath>
+   <linearGradient id="lg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2ef2c4"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs>
+   <g class="head"><rect x="36" y="10" width="40" height="10" rx="4" fill="#cfe9f7"/><path d="M76 13h22v5H76z" fill="#cfe9f7"/><rect x="52" y="20" width="10" height="22" fill="#9cc6dc"/></g>
+   <rect x="42" y="40" width="36" height="20" rx="4" fill="#9cc6dc"/>
+   <g clip-path="url(#cp)"><g id="liq" transform="translate(0,190)"><path class="wave" fill="url(#lg)" opacity=".9"
+    d="M0 0q15-7 30 0t30 0 30 0 30 0 30 0 30 0 30 0v200H0z"/></g></g>
+   <rect x="20" y="58" width="80" height="134" rx="20" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="3"/>
+   <rect x="30" y="72" width="7" height="90" rx="3" fill="rgba(255,255,255,.25)"/></svg>
+  <div><div id="pct" class="big">--%</div><div class="sub" style="margin-top:8px"><b id="left">--</b> squirts left of <span id="cap">--</span></div>
+   <div class="sub" id="est" style="margin-top:6px">&nbsp;</div>
+   <button class="btn ghost" style="margin-top:14px" onclick="act('F','Bottle refilled')">&#8635; Refilled</button></div></div></div>
+ <div class="card c4"><h3>Control</h3>
+  <button class="btn" style="padding:22px;font-size:18px" onclick="act('D','Dispensing...')">&#128167; DISPENSE NOW</button>
+  <div class="row" style="margin-top:18px"><div><b>Auto mode</b><div class="sub">Dispense when a hand is detected</div></div>
+   <label class="sw"><input id="auto" type="checkbox" onchange="act(this.checked?'A1':'A0',this.checked?'Auto mode ON':'Paused')"><span></span></label></div>
+  <div class="row"><div><b>Bluetooth</b><div class="sub" id="net">Not connected</div></div><div id="sig" class="sub">BLE</div></div>
+  <div class="row"><div><b>Clock</b><div class="sub" id="sync">--</div></div><div id="up">--</div></div></div>
+ <div class="card c3 stat"><div class="ic">&#9728;</div><div class="v" id="today">0</div><div class="l">Uses today</div></div>
+ <div class="card c3 stat"><div class="ic">&#931;</div><div class="v" id="total">0</div><div class="l">All-time uses</div></div>
+ <div class="card c3 stat"><div class="ic">&#9719;</div><div class="v" id="last">--:--</div><div class="l">Last used</div></div>
+ <div class="card c3 stat"><div class="ic">&#9650;</div><div class="v" id="peak">--</div><div class="l">Busiest hour today</div></div>
+ <div class="card c8"><h3>Usage Today (per hour)</h3><div id="bars" class="bars"></div>
+  <div class="hrs"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div></div>
+ <div class="card c4"><h3>Activity</h3><div id="log" class="log"></div></div>
+ <div class="card c12 set"><h3>Settings</h3><div class="grid">
+  <div class="c3"><label>Press angle <b id="vP"></b></label><input id="sP" type="range" min="0" max="180"></div>
+  <div class="c3"><label>Rest angle <b id="vR"></b></label><input id="sR" type="range" min="0" max="180"></div>
+  <div class="c3"><label>Spray time <b id="vH"></b></label><input id="sH" type="range" min="100" max="3000" step="50"></div>
+  <div class="c3"><label>Cooldown <b id="vC"></b></label><input id="sC" type="range" min="300" max="10000" step="100"></div>
+  <div class="c4"><label>Bottle capacity (squirts)</label><input id="sCap" type="number" min="10" max="5000"></div>
+  <div class="c4"><label>&nbsp;</label><button class="btn" onclick="save()">Save settings</button></div>
+  <div class="c4"><label>&nbsp;</label><button class="btn danger" onclick="if(confirm('Reset all usage statistics?'))act('X','Statistics reset')">Reset statistics</button></div>
+ </div></div>
+</div>
+<footer>SANI-BOT &middot; ESP32 Bluetooth Automatic Sanitizer</footer></div>
+<div id="toast" class="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+const demo=location.search.indexOf('demo')>=0;
+const SVC='5a4e1b00-7c1e-4b5e-9a3f-2d6c5a17e001',U=n=>SVC.replace('5a4e1b00','5a4e1b0'+n);
+const enc=new TextEncoder(),dec=new TextDecoder();
+let dev=null,ch={},q=Promise.resolve(),connected=false,manualOff=false,lv=-1,lastLog=[],reading=false,again=false;
+let lastTotal=null,loaded=false,dirty=false;
+
+for(let i=0;i<24;i++){const d=document.createElement('div');d.className='bar';$('bars').appendChild(d);}
+['sP','sR','sH','sC','sCap'].forEach(id=>$(id).addEventListener('input',()=>{dirty=true;labels();}));
+function labels(){$('vP').textContent=$('sP').value+'°';$('vR').textContent=$('sR').value+'°';
+ $('vH').textContent=($('sH').value/1000).toFixed(2)+' s';$('vC').textContent=($('sC').value/1000).toFixed(1)+' s';}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1900);}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+// ---------- connection UI ----------
+function setConn(s){ // 'on' | 'wait' | 'off'
+ connected=s=='on';
+ $('led').className='led'+(s=='on'?' on':s=='wait'?' wait':'');
+ $('link').textContent=demo?'Demo mode':s=='on'?'Connected':s=='wait'?'Connecting...':'Disconnected';
+ $('btTxt').textContent=s=='on'?'Disconnect':s=='wait'?'Connecting...':'Connect';
+ $('btBtn').className='bt'+(s=='on'?' off':'');
+ $('connBox').classList.toggle('show',s!='on');
+ $('main').classList.toggle('dim',s!='on');
+ $('net').textContent=s=='on'?((dev&&dev.name)||'SANI-BOT')+' • connected':'Not connected';
+}
+function btToggle(){if(connected&&!demo){manualOff=true;dev.gatt.disconnect();}else connect();}
+
+// ---------- Web Bluetooth ----------
+function gatt(fn){const r=q.then(fn);q=r.catch(()=>{});return r;}   // one Bluetooth operation at a time
+async function connect(){
+ if(demo){setConn('on');return;}
+ if(!navigator.bluetooth){toast('Bluetooth not supported in this browser');return;}
+ try{
+  dev=await navigator.bluetooth.requestDevice({filters:[{services:[SVC]},{namePrefix:'SANI'}],optionalServices:[SVC]});
+  dev.addEventListener('gattserverdisconnected',onDisc);
+  manualOff=false;await link();
+ }catch(e){setConn('off');if(e&&e.name!=='NotFoundError')toast('Connection failed - try again');}
+}
+async function link(){
+ setConn('wait');
+ const srv=await dev.gatt.connect();
+ const s=await srv.getPrimaryService(SVC);
+ ch.st=await s.getCharacteristic(U(1));ch.log=await s.getCharacteristic(U(2));
+ ch.cmd=await s.getCharacteristic(U(3));ch.evt=await s.getCharacteristic(U(4));
+ await ch.evt.startNotifications();
+ ch.evt.addEventListener('characteristicvaluechanged',()=>refresh());
+ q=Promise.resolve();lv=-1;setConn('on');
+ await send('Z'+(-new Date().getTimezoneOffset()));          // phone time zone
+ await send('T'+Math.floor(Date.now()/1000));                 // phone clock
+ refresh();toast('Connected to '+(dev.name||'SANI-BOT'));
+}
+async function onDisc(){
+ setConn('off');
+ if(manualOff){toast('Disconnected');return;}
+ toast('Connection lost - reconnecting...');
+ for(let i=0;i<5&&!connected&&!manualOff;i++){await sleep(2000);try{await link();}catch(e){setConn('off');}}
+}
+function send(c){
+ const data=enc.encode(c);
+ return gatt(()=>ch.cmd.writeValueWithResponse?ch.cmd.writeValueWithResponse(data):ch.cmd.writeValue(data));
+}
+async function refresh(){
+ if(!connected||demo)return;
+ if(reading){again=true;return;}
+ reading=true;
+ try{
+  const s=JSON.parse(dec.decode(await gatt(()=>ch.st.readValue())));
+  if(s.lv!==lv){lastLog=JSON.parse(dec.decode(await gatt(()=>ch.log.readValue())));lv=s.lv;}
+  s.log=lastLog;render(s);
+ }catch(e){}
+ reading=false;
+ if(again){again=false;refresh();}
+}
+setInterval(refresh,1500);
+
+// ---------- actions ----------
+async function act(c,msg){
+ if(demo){D.cmd(c);render(D.status());if(msg)toast(msg);return;}
+ if(!connected){toast('Connect to SANI-BOT first');return;}
+ try{await send(c);if(msg)toast(msg);refresh();}catch(e){toast('Command failed');}
+}
+async function save(){
+ const cmds=['P'+$('sP').value,'R'+$('sR').value,'H'+$('sH').value,'C'+$('sC').value,'K'+$('sCap').value,'W'];
+ dirty=false;
+ if(demo){cmds.forEach(c=>D.cmd(c));render(D.status());toast('Settings saved');return;}
+ if(!connected){toast('Connect to SANI-BOT first');return;}
+ try{for(const c of cmds)await send(c);toast('Settings saved');refresh();}catch(e){toast('Save failed');}
+}
+
+// ---------- draw dashboard ----------
+function fmtUp(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return(d?d+'d ':'')+h+'h '+m+'m';}
+function esc(t){return String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function render(s){
+ const busy=s.busy,st=busy?'DISPENSING':!s.auto?'PAUSED':s.hand?'HAND DETECTED':'READY';
+ $('state').textContent=st;
+ $('stsub').textContent=busy?'Sanitizing your hands...':!s.auto?'Auto mode is off':s.hand?'Hold still':'Place your hand under the sensor';
+ $('ring').className='ring'+(busy?' busy':s.hand?' hand':'')+(!s.auto?' off':'');
+ $('bottle').classList.toggle('press',!!busy);
+ const p=s.cap?Math.max(0,Math.min(1,s.left/s.cap)):0,low=p<=.15;
+ $('liq').setAttribute('transform','translate(0,'+(192-134*p)+')');
+ $('pct').textContent=Math.round(p*100)+'%';$('pct').className='big'+(low?' low':'');
+ $('left').textContent=s.left;$('cap').textContent=s.cap;$('banner').classList.toggle('show',low);
+ $('est').textContent=s.today>0?('~'+Math.max(1,Math.round(s.left/s.today))+' day(s) left at today\'s rate'):'';
+ $('today').textContent=s.today;$('total').textContent=s.total;$('last').textContent=s.last;
+ const mx=Math.max(1,...s.hours);let pk=-1,pv=0;
+ [...$('bars').children].forEach((b,i)=>{b.style.height=(s.hours[i]/mx*100)+'%';b.className='bar'+(i==s.hr?' now':'');
+  b.dataset.t=String(i).padStart(2,'0')+':00 — '+s.hours[i]+' uses';if(s.hours[i]>pv){pv=s.hours[i];pk=i;}});
+ $('peak').textContent=pk<0?'--':String(pk).padStart(2,'0')+':00';
+ $('auto').checked=!!s.auto;$('clk').textContent=s.clock;$('up').textContent=fmtUp(s.up);
+ $('sync').textContent=s.sync?'Synced from phone':'Not synced (uptime)';
+ $('log').innerHTML=(s.log||[]).map(l=>'<div class="it'+(/LOW|EMPTY|OFF|reset|discon/i.test(l.m)?' w':'')+'"><span class="d"></span>'+esc(l.m)+'<time>'+esc(l.t)+'</time></div>').join('')||'<div class="sub">No activity yet</div>';
+ if(!loaded||!dirty){$('sP').value=s.press;$('sR').value=s.rest;$('sH').value=s.hold;$('sC').value=s.cool;$('sCap').value=s.cap;labels();loaded=true;}
+ if(lastTotal!==null&&s.total>lastTotal)toast('✔ Hands sanitized');lastTotal=s.total;
+}
+
+// ---------- startup ----------
+if(!demo&&!navigator.bluetooth){
+ $('connMsg').innerHTML='This browser has no Bluetooth support. Open this page in <b>Chrome</b> (Android or PC) or the <b>Bluefy</b> app (iPhone).';
+}
+labels();setConn('off');
+
+// ---------- demo mode (add ?demo to the link) ----------
+const D={s:{hand:0,busy:0,auto:1,total:1287,today:46,left:52,cap:300,rest:0,press:90,hold:600,cool:1500,up:93780,sync:1,last:'14:32',hr:14,clock:'',
+ hours:[0,0,0,0,0,1,3,7,9,5,4,6,8,4,3,0,0,0,0,0,0,0,0,0],log:[{t:'14:32:10',m:'Dispensed (auto)'},{t:'14:29:51',m:'Dispensed (auto)'},{t:'14:20:03',m:'LOW LEVEL - please refill'},{t:'14:18:44',m:'Dispensed (app)'},{t:'14:18:02',m:'Clock synced from phone'},{t:'14:18:01',m:'Phone connected'}]},
+ status(){const s=this.s;s.clock=new Date().toTimeString().slice(0,8);s.up++;return JSON.parse(JSON.stringify(s));},
+ lg(m){this.s.log.unshift({t:new Date().toTimeString().slice(0,8),m});this.s.log=this.s.log.slice(0,8);},
+ cmd(c){const s=this.s,v=+c.slice(1);
+  if(c[0]=='D')this.go('app');if(c[0]=='F'){s.left=s.cap;this.lg('Bottle refilled');}
+  if(c[0]=='A'){s.auto=v;this.lg(v?'Auto mode ON':'Auto mode OFF (paused)');}
+  if(c[0]=='X'){s.total=0;s.today=0;s.hours=s.hours.map(()=>0);this.lg('Statistics reset');}
+  if(c[0]=='P')s.press=v;if(c[0]=='R')s.rest=v;if(c[0]=='H')s.hold=v;if(c[0]=='C')s.cool=v;if(c[0]=='K')s.cap=v;if(c[0]=='W')this.lg('Settings saved');},
+ go(w){const s=this.s;if(s.busy)return;s.busy=1;s.total++;s.today++;s.hours[s.hr]++;if(s.left>0)s.left--;
+  s.last=new Date().toTimeString().slice(0,5);this.lg('Dispensed ('+w+')');setTimeout(()=>s.busy=0,1000);}};
+if(demo){
+ dev={name:'SANI-BOT'};setConn('on');
+ setInterval(()=>render(D.status()),500);
+ setInterval(()=>{const s=D.s;s.hand=1;setTimeout(()=>{if(s.auto)D.go('auto');},300);setTimeout(()=>s.hand=0,1500);},6000);
+}
+</script></body></html>
